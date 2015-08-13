@@ -66,6 +66,7 @@ module Gym
 
     # Makes sure the archive is there and valid
     def verify_archive
+      return if Gym.config[:dry_run]
       if Dir[BuildCommandGenerator.archive_path + "/*"].count == 0
         ErrorHandler.handle_empty_archive
       end
@@ -162,6 +163,8 @@ module Gym
       output = []
       command = command.join(" ")
       Helper.log.info command.yellow.strip unless Gym.config[:silent]
+
+      return if Gym.config[:dry_run]
 
       puts "\n-----".cyan if print_all
 
