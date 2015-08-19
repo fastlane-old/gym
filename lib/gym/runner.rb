@@ -5,13 +5,9 @@ module Gym
   class Runner
     # @return (String) The path to the resulting ipa
     def run
-      clear_old_files
       build_app
       verify_archive
       package_app
-      Gym::XcodebuildFixes.swift_library_fix
-      Gym::XcodebuildFixes.watchkit_fix
-      Gym::XcodebuildFixes.clear_patched_package_application
       move_results
     end
 
@@ -47,12 +43,6 @@ module Gym
     #####################################################
     # @!group The individual steps
     #####################################################
-
-    def clear_old_files
-      if File.exist? PackageCommandGenerator.ipa_path
-        File.delete(PackageCommandGenerator.ipa_path)
-      end
-    end
 
     # Builds the app and prepares the archive
     def build_app
@@ -93,8 +83,8 @@ module Gym
     def move_results
       require 'fileutils'
       FileUtils.mkdir_p(Gym.config[:output_directory])
-      FileUtils.mv(PackageCommandGenerator.ipa_path, Gym.config[:output_directory], force: true)
 
+      # First, move the dSYM file
       if PackageCommandGenerator.dsym_path
         # Compress and move the dsym file
         containing_directory = File.expand_path("..", PackageCommandGenerator.dsym_path)
@@ -111,8 +101,10 @@ module Gym
         Helper.log.info "Successfully exported and compressed dSYM file.".green
       end
 
-      ipa_path = File.join(Gym.config[:output_directory], File.basename(PackageCommandGenerator.ipa_path))
-
+      # Now the ipa file
+      ipa_path = Dir.glob(File.join(BuildCommandGenerator.build_path, "*.ipa")).last
+      FileUtils.mv(ipa_path, Gym.config[:output_directory], force: true) # force = overwrite if exists
+      ipa_path = File.join(Gym.config[:output_directory], File.basename(ipa_path))
       Helper.log.info "Successfully exported and signed ipa file:".green
       Helper.log.info ipa_path
       ipa_path
