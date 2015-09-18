@@ -92,6 +92,7 @@ module Gym
         command = "xcrun xcodebuild -showBuildSettings #{BuildCommandGenerator.project_path_array.join(' ')}"
         Helper.log.info command.yellow unless Gym.config[:silent]
         @build_settings = `#{command}`
+        Helper.log.info @build_settings if $verbose
       end
 
       begin
