@@ -10,13 +10,17 @@ module Gym
       def generate
         print_legacy_information unless Helper.fastlane_enabled?
 
-        parts = ["/usr/bin/xcrun xcodebuild -exportArchive"]
+        parts = prefix
         parts += options
         parts += pipe
 
         File.write(config_path, config_content) # overwrite everytime. Could be optimized
 
         parts
+      end
+
+      def prefix
+        ["/usr/bin/xcrun xcodebuild -exportArchive"]
       end
 
       def options
