@@ -1,4 +1,3 @@
-require 'pty'
 require 'open3'
 require 'fileutils'
 
@@ -13,18 +12,22 @@ module Gym
       end
 
       build_app
-      verify_archive
+      if Gym.config[:archive]
+        verify_archive
 
-      FileUtils.mkdir_p(Gym.config[:output_directory])
+        FileUtils.mkdir_p(Gym.config[:output_directory])
 
-      if Gym.project.ios? || Gym.project.tvos?
-        package_app
-        fix_package
-        compress_and_move_dsym
-        move_ipa
-      elsif Gym.project.mac?
-        compress_and_move_dsym
-        move_mac_app
+        if Gym.project.ios? || Gym.project.tvos?
+          package_app
+          fix_package
+          compress_and_move_dsym
+          move_ipa
+        elsif Gym.project.mac?
+          compress_and_move_dsym
+          move_mac_app
+        end
+      else
+        return ""
       end
     end
 
@@ -86,8 +89,12 @@ module Gym
                                                 ErrorHandler.handle_build_error(output)
                                               end)
 
-      UI.success "Successfully stored the archive. You can find it in the Xcode Organizer."
-      UI.verbose("Stored the archive in: " + BuildCommandGenerator.archive_path)
+      if Gym.config[:archive]
+        UI.success "Successfully stored the archive. You can find it in the Xcode Organizer."
+        UI.verbose("Stored the archive in: " + BuildCommandGenerator.archive_path)
+      else
+        UI.success "Successfully build the app."
+      end
     end
 
     # Makes sure the archive is there and valid
