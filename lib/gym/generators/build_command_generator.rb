@@ -32,12 +32,13 @@ module Gym
         config = Gym.config
 
         options = []
+
         options += project_path_array
         options << "-configuration '#{config[:configuration]}'" if config[:configuration]
         options << "-sdk '#{config[:sdk]}'" if config[:sdk]
         options << "-destination '#{config[:destination]}'" if config[:destination]
         options << "-xcconfig '#{config[:xcconfig]}'" if config[:xcconfig]
-        options << "-archivePath '#{archive_path}'"
+        options << "-archivePath '#{archive_path}'" if config[:archive]
         options << "-derivedDataPath '#{config[:derived_data_path]}'" if config[:derived_data_path]
         options << "-resultBundlePath '#{result_bundle_path}'" if config[:result_bundle]
         options << config[:xcargs] if config[:xcargs]
@@ -49,8 +50,9 @@ module Gym
         config = Gym.config
 
         actions = []
-        actions << :clean if config[:clean]
-        actions << :archive
+
+        actions << :clean if config[:clean] and config[:archive]
+        actions << :archive if config[:archive]
 
         actions
       end
@@ -90,16 +92,19 @@ module Gym
       end
 
       def archive_path
-        Gym.cache[:archive_path] ||= Gym.config[:archive_path]
-        unless Gym.cache[:archive_path]
-          file_name = [Gym.config[:output_name], Time.now.strftime("%F %H.%M.%S")] # e.g. 2015-08-07 14.49.12
-          Gym.cache[:archive_path] = File.join(build_path, file_name.join(" ") + ".xcarchive")
-        end
+        if Gym.config[:archive]
+          Gym.cache[:archive_path] ||= Gym.config[:archive_path]
+          unless Gym.cache[:archive_path]
+            file_name = [Gym.config[:output_name], Time.now.strftime("%F %H.%M.%S")] # e.g. 2015-08-07 14.49.12
+            Gym.cache[:archive_path] = File.join(build_path, file_name.join(" ") + ".xcarchive")
+          end
 
-        if File.extname(Gym.cache[:archive_path]) != ".xcarchive"
-          Gym.cache[:archive_path] += ".xcarchive"
+          if File.extname(Gym.cache[:archive_path]) != ".xcarchive"
+            Gym.cache[:archive_path] += ".xcarchive"
+          end
+          return Gym.cache[:archive_path]
         end
-        return Gym.cache[:archive_path]
+        return ""
       end
 
       def result_bundle_path
