@@ -8,3 +8,5 @@ rvm:
   - 2.1.6
   - 2.2.2
 script: bundle exec fastlane test
+env:
+  - PAGER=sort
