@@ -91,11 +91,19 @@ module Gym
         Gym.cache[:build_path]
       end
 
+      def archive_name
+        Gym.cache[:archive_name] ||= Gym.config[:archive_name]
+        unless Gym.cache[:archive_name]
+          Gym.cache[:archive_name] = [Gym.config[:output_name], Time.now.strftime("%F %H.%M.%S")].join(" ") # e.g. 2015-08-07 14.49.12
+        end
+        Gym.cache[:archive_name]
+      end
+
       def archive_path
         Gym.cache[:archive_path] ||= Gym.config[:archive_path]
         unless Gym.cache[:archive_path]
-          file_name = [Gym.config[:output_name], Time.now.strftime("%F %H.%M.%S")] # e.g. 2015-08-07 14.49.12
-          Gym.cache[:archive_path] = File.join(build_path, file_name.join(" ") + ".xcarchive")
+          file_name = archive_name
+          Gym.cache[:archive_path] = File.join(build_path, file_name + ".xcarchive")
         end
 
         if File.extname(Gym.cache[:archive_path]) != ".xcarchive"

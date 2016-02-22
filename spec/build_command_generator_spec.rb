@@ -71,9 +71,45 @@ describe Gym do
         expect(result).to eq("/tmp/my/build_path")
       end
 
-      it "#archive_path" do
+      it "default #archive_name" do
+        result = Gym::BuildCommandGenerator.archive_name
+        regex = /ExampleProductName \d\d\d\d\-\d\d\-\d\d \d\d\.\d\d\.\d\d/
+        expect(result).to match(regex)
+      end
+
+      it "custom #archive_name" do
+        options = { project: "./examples/standard/Example.xcodeproj", archive_name: "CustomArchviveName" }
+        Gym.config = FastlaneCore::Configuration.create(Gym::Options.available_options, options)
+        result = Gym::BuildCommandGenerator.archive_name
+        expect(result).to eq("CustomArchviveName")
+      end
+
+      it "default #archive_path" do
         result = Gym::BuildCommandGenerator.archive_path
         regex = %r{Library/Developer/Xcode/Archives/\d\d\d\d\-\d\d\-\d\d/ExampleProductName \d\d\d\d\-\d\d\-\d\d \d\d\.\d\d\.\d\d.xcarchive}
+        expect(result).to match(regex)
+      end
+
+      it "custom #archive_path" do
+        options = { project: "./examples/standard/Example.xcodeproj", archive_path: "/path/to/archive.xcarchive" }
+        Gym.config = FastlaneCore::Configuration.create(Gym::Options.available_options, options)
+        result = Gym::BuildCommandGenerator.archive_path
+        expect(result).to eq("/path/to/archive.xcarchive")
+      end
+
+      it "#archive_path with custom #build_path" do
+        options = { project: "./examples/standard/Example.xcodeproj", build_path: "/tmp/my/build_path" }
+        Gym.config = FastlaneCore::Configuration.create(Gym::Options.available_options, options)
+        result = Gym::BuildCommandGenerator.archive_path
+        regex = %r{/tmp/my/build_path/ExampleProductName \d\d\d\d\-\d\d\-\d\d \d\d\.\d\d\.\d\d.xcarchive}
+        expect(result).to match(regex)
+      end
+
+      it "#archive_path with custom #archive_name" do
+        options = { project: "./examples/standard/Example.xcodeproj", archive_name: "CustomArchviveName" }
+        Gym.config = FastlaneCore::Configuration.create(Gym::Options.available_options, options)
+        result = Gym::BuildCommandGenerator.archive_path
+        regex = %r{Library/Developer/Xcode/Archives/\d\d\d\d\-\d\d\-\d\d/CustomArchviveName.xcarchive}
         expect(result).to match(regex)
       end
 
