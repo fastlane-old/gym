@@ -1,28 +1,33 @@
 require 'pty'
 require 'open3'
 require 'fileutils'
+require 'shellwords'
 
 module Gym
   class Runner
     # @return (String) The path to the resulting ipa
     def run
       clear_old_files
+
       build_app
       verify_archive
 
       FileUtils.mkdir_p(Gym.config[:output_directory])
 
-      if Gym.project.ios?
+      if Gym.project.ios? || Gym.project.tvos?
         package_app
-        Gym::XcodebuildFixes.swift_library_fix
-        Gym::XcodebuildFixes.watchkit_fix
-        Gym::XcodebuildFixes.clear_patched_package_application
-
+        fix_package
         compress_and_move_dsym
-        move_ipa
+        path = move_ipa
+        move_manifest
+        move_app_thinning
+        move_app_thinning_size_report
+        move_apps_folder
+
+        path
       elsif Gym.project.mac?
         compress_and_move_dsym
-        move_mac_app
+        copy_mac_app
       end
     end
 
@@ -60,9 +65,22 @@ module Gym
     #####################################################
 
     def clear_old_files
-      if File.exist? PackageCommandGenerator.ipa_path
+      return unless Gym.config[:use_legacy_build_api]
+      if File.exist?(PackageCommandGenerator.ipa_path)
         File.delete(PackageCommandGenerator.ipa_path)
       end
+    end
+
+    def fix_package
+      return unless Gym.config[:use_legacy_build_api]
+      Gym::XcodebuildFixes.swift_library_fix
+      Gym::XcodebuildFixes.watchkit_fix
+      Gym::XcodebuildFixes.watchkit2_fix
+    end
+
+    def mark_archive_as_built_by_gym(archive_path)
+      escaped_archive_path = archive_path.shellescape
+      system("xattr -w info.fastlane.generated_by_gym 1 #{escaped_archive_path}")
     end
 
     # Builds the app and prepares the archive
@@ -76,13 +94,15 @@ module Gym
                                                 ErrorHandler.handle_build_error(output)
                                               end)
 
-      Helper.log.info("Successfully stored the archive. You can find it in the Xcode Organizer.".green)
-      Helper.log.info("Stored the archive in: ".green + BuildCommandGenerator.archive_path) if $verbose
+      mark_archive_as_built_by_gym(BuildCommandGenerator.archive_path)
+      UI.success "Successfully stored the archive. You can find it in the Xcode Organizer."
+      UI.verbose("Stored the archive in: " + BuildCommandGenerator.archive_path)
     end
 
     # Makes sure the archive is there and valid
     def verify_archive
-      if Dir[BuildCommandGenerator.archive_path + "/*"].count == 0
+      # from https://github.com/fastlane/gym/issues/115
+      if (Dir[BuildCommandGenerator.archive_path + "/*"]).count == 0
         ErrorHandler.handle_empty_archive
       end
     end
@@ -104,42 +124,99 @@ module Gym
 
       # Compress and move the dsym file
       containing_directory = File.expand_path("..", PackageCommandGenerator.dsym_path)
-      file_name = File.basename(PackageCommandGenerator.dsym_path)
+
+      available_dsyms = Dir.glob("#{containing_directory}/*.dSYM")
+      UI.message "Compressing #{available_dsyms.count} dSYM(s)" unless Gym.config[:silent]
 
       output_path = File.expand_path(File.join(Gym.config[:output_directory], Gym.config[:output_name] + ".app.dSYM.zip"))
-      command = "cd '#{containing_directory}' && zip -r '#{output_path}' '#{file_name}'"
-      Helper.log.info command.yellow unless Gym.config[:silent]
-      command_result = `#{command}`
-      Helper.log.info command_result if $verbose
+      command = "cd '#{containing_directory}' && zip -r '#{output_path}' *.dSYM"
+      Helper.backticks(command, print: !Gym.config[:silent])
 
       puts "" # new line
 
-      Helper.log.info "Successfully exported and compressed dSYM file.".green
+      UI.success "Successfully exported and compressed dSYM file"
     end
 
     # Moves over the binary and dsym file to the output directory
     # @return (String) The path to the resulting ipa file
     def move_ipa
-      FileUtils.mv(PackageCommandGenerator.ipa_path, Gym.config[:output_directory], force: true)
+      FileUtils.mv(PackageCommandGenerator.ipa_path, File.expand_path(Gym.config[:output_directory]), force: true)
+      ipa_path = File.expand_path(File.join(Gym.config[:output_directory], File.basename(PackageCommandGenerator.ipa_path)))
 
-      ipa_path = File.join(Gym.config[:output_directory], File.basename(PackageCommandGenerator.ipa_path))
-
-      Helper.log.info "Successfully exported and signed the ipa file:".green
-      Helper.log.info ipa_path
+      UI.success "Successfully exported and signed the ipa file:"
+      UI.message ipa_path
       ipa_path
     end
 
-    # Move the .app from the archive into the output directory
-    def move_mac_app
+    # Copies the .app from the archive into the output directory
+    def copy_mac_app
       app_path = Dir[File.join(BuildCommandGenerator.archive_path, "Products/Applications/*.app")].last
-      raise "Couldn't find application in '#{BuildCommandGenerator.archive_path}'".red unless app_path
+      UI.crash!("Couldn't find application in '#{BuildCommandGenerator.archive_path}'") unless app_path
 
-      FileUtils.mv(app_path, Gym.config[:output_directory], force: true)
+      FileUtils.cp_r(app_path, File.expand_path(Gym.config[:output_directory]), remove_destination: true)
       app_path = File.join(Gym.config[:output_directory], File.basename(app_path))
 
-      Helper.log.info "Successfully exported the .app file:".green
-      Helper.log.info app_path
+      UI.success "Successfully exported the .app file:"
+      UI.message app_path
       app_path
+    end
+
+    # Move the manifest.plist if exists into the output directory
+    def move_manifest
+      if File.exist?(PackageCommandGenerator.manifest_path)
+        FileUtils.mv(PackageCommandGenerator.manifest_path, File.expand_path(Gym.config[:output_directory]), force: true)
+        manifest_path = File.join(File.expand_path(Gym.config[:output_directory]), File.basename(PackageCommandGenerator.manifest_path))
+
+        UI.success "Successfully exported the manifest.plist file:"
+        UI.message manifest_path
+        manifest_path
+      end
+    end
+
+    # Move the app-thinning.plist file into the output directory
+    def move_app_thinning
+      if File.exist?(PackageCommandGenerator.app_thinning_path)
+        FileUtils.mv(PackageCommandGenerator.app_thinning_path, File.expand_path(Gym.config[:output_directory]), force: true)
+        app_thinning_path = File.join(File.expand_path(Gym.config[:output_directory]), File.basename(PackageCommandGenerator.app_thinning_path))
+
+        UI.success "Successfully exported the app-thinning.plist file:"
+        UI.message app_thinning_path
+        app_thinning_path
+      end
+    end
+
+    # Move the App Thinning Size Report.txt file into the output directory
+    def move_app_thinning_size_report
+      if File.exist?(PackageCommandGenerator.app_thinning_size_report_path)
+        FileUtils.mv(PackageCommandGenerator.app_thinning_size_report_path, File.expand_path(Gym.config[:output_directory]), force: true)
+        app_thinning_size_report_path = File.join(File.expand_path(Gym.config[:output_directory]), File.basename(PackageCommandGenerator.app_thinning_size_report_path))
+
+        UI.success "Successfully exported the App Thinning Size Report.txt file:"
+        UI.message app_thinning_size_report_path
+        app_thinning_size_report_path
+      end
+    end
+
+    # Move the Apps folder to the output directory
+    def move_apps_folder
+      if Dir.exist?(PackageCommandGenerator.apps_path)
+        FileUtils.mv(PackageCommandGenerator.apps_path, File.expand_path(Gym.config[:output_directory]), force: true)
+        apps_path = File.join(File.expand_path(Gym.config[:output_directory]), File.basename(PackageCommandGenerator.apps_path))
+
+        UI.success "Successfully exported Apps folder:"
+        UI.message apps_path
+        apps_path
+      end
+    end
+
+    private
+
+    def find_archive_path
+      if Gym.config[:use_legacy_build_api]
+        BuildCommandGenerator.archive_path
+      else
+        Dir.glob(File.join(BuildCommandGenerator.build_path, "*.ipa")).last
+      end
     end
   end
 end

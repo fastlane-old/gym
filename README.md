@@ -1,41 +1,42 @@
 <h3 align="center">
-  <a href="https://github.com/KrauseFx/fastlane">
+  <a href="https://github.com/fastlane/fastlane">
     <img src="assets/fastlane.png" width="150" />
     <br />
     fastlane
   </a>
 </h3>
 <p align="center">
-  <a href="https://github.com/KrauseFx/deliver">deliver</a> &bull; 
-  <a href="https://github.com/KrauseFx/snapshot">snapshot</a> &bull; 
-  <a href="https://github.com/KrauseFx/frameit">frameit</a> &bull; 
-  <a href="https://github.com/KrauseFx/PEM">PEM</a> &bull; 
+  <a href="https://github.com/fastlane/deliver">deliver</a> &bull; 
+  <a href="https://github.com/fastlane/snapshot">snapshot</a> &bull; 
+  <a href="https://github.com/fastlane/frameit">frameit</a> &bull; 
+  <a href="https://github.com/fastlane/pem">pem</a> &bull; 
   <a href="https://github.com/fastlane/sigh">sigh</a> &bull; 
-  <a href="https://github.com/KrauseFx/produce">produce</a> &bull;
-  <a href="https://github.com/KrauseFx/cert">cert</a> &bull;
-  <a href="https://github.com/KrauseFx/codes">codes</a> &bull;
+  <a href="https://github.com/fastlane/produce">produce</a> &bull;
+  <a href="https://github.com/fastlane/cert">cert</a> &bull;
   <a href="https://github.com/fastlane/spaceship">spaceship</a> &bull;
   <a href="https://github.com/fastlane/pilot">pilot</a> &bull;
   <a href="https://github.com/fastlane/boarding">boarding</a> &bull;
-  <b>gym</b>
+  <b>gym</b> &bull;
+  <a href="https://github.com/fastlane/scan">scan</a> &bull;
+  <a href="https://github.com/fastlane/match">match</a>
 </p>
 -------
 
 <p align="center">
-    <img src="assets/gym.png">
+  <img src="assets/gym.png" height="110">
 </p>
 
 gym
 ============
 
-[![Twitter: @KauseFx](https://img.shields.io/badge/contact-@KrauseFx-blue.svg?style=flat)](https://twitter.com/KrauseFx)
-[![License](http://img.shields.io/badge/license-MIT-green.svg?style=flat)](https://github.com/fastlane/gym/blob/master/LICENSE)
+[![Twitter: @KauseFx](https://img.shields.io/badge/contact-@FastlaneTools-blue.svg?style=flat)](https://twitter.com/FastlaneTools)
+[![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat)](https://github.com/fastlane/gym/blob/master/LICENSE)
 [![Gem](https://img.shields.io/gem/v/gym.svg?style=flat)](http://rubygems.org/gems/gym)
 [![Build Status](https://img.shields.io/travis/fastlane/gym/master.svg?style=flat)](https://travis-ci.org/fastlane/gym)
 
 ###### Building your app has never been easier
 
-Get in contact with the developer on Twitter: [@KrauseFx](https://twitter.com/KrauseFx)
+Get in contact with the developer on Twitter: [@FastlaneTools](https://twitter.com/FastlaneTools)
 
 -------
 <p align="center">
@@ -100,8 +101,6 @@ gym
 
 # Installation
 
-This tool is still work in progress. You can already try it by cloning the repo and running
-
     sudo gem install gym
 
 Make sure, you have the latest version of the Xcode command line tools installed:
@@ -116,14 +115,31 @@ That's all you need to build your application. If you want more control, here ar
 
     gym --workspace "Example.xcworkspace" --scheme "AppName" --clean
 
+If you need to use a different xcode install, use xcode-select or define DEVELOPER_DIR:
+
+    DEVELOPER_DIR="/Applications/Xcode6.2.app" gym
+
 For a list of all available parameters use
 
     gym --help
 
 If you run into any issues, use the `verbose` mode to get more information
 
-
     gym --verbose
+
+In general, if you run into issues while exporting the archive, try using:
+
+    gym --use_legacy_build_api
+
+Set the right export method if you're not uploading to App Store or TestFlight:
+
+    gym --export_method ad-hoc
+
+To pass boolean parameters make sure to use `gym` like this:
+
+    gym --include_bitcode true --include_symbols false
+
+To access the raw `xcodebuild` output open `~/Library/Logs/gym`
 
 # Gymfile
 
@@ -134,13 +150,35 @@ Run `gym init` to create a new configuration file. Example:
 ```ruby
 scheme "Example"
 
-sdk "9.0"
+sdk "iphoneos9.0"
 
 clean true
 
 output_directory "./build"    # store the ipa in this folder
 output_name "MyApp"           # the name of the ipa file
 ```
+
+## Export options
+
+Since Xcode 7, `gym` is using new Xcode API which allows us to specify export options using `plist` file. By default `gym` creates this file for you and you are able to modify some parameters by using `export_method`, `export_team_id`, `include_symbols` or `include_bitcode`. If you want to have more options, like creating manifest file or app thinning, you can provide your own `plist` file:
+
+```ruby
+export_options "./ExportOptions.plist"
+```
+
+or you can provide hash of values directly in the `Gymfile`:
+
+```ruby
+export_options(
+  method: "ad-hoc",
+  manifest: {
+    appURL: "https://example.com/My App.ipa",
+  },
+  thinning: "<thin-for-all-variants>"
+)
+```
+
+For the list of available options run `xcodebuild -help`.
 
 # Automating the whole process
 
@@ -158,7 +196,7 @@ end
 
 You can then easily switch between the beta provider (e.g. `testflight`, `hockey`, `s3` and more).
 
-For more information visit the [fastlane GitHub page](https://github.com/KrauseFx/fastlane).
+For more information visit the [fastlane GitHub page](https://github.com/fastlane/fastlane).
 
 # How does it work?
 
@@ -181,8 +219,26 @@ xcodebuild -scheme 'Example' \
 archive | xcpretty
 ```
 
-
 After building the archive it is being checked by `gym`. If it's valid, it gets packaged up and signed into an `ipa` file.
+
+`gym` automatically chooses a different packaging method depending on the version of Xcode you're using.
+
+### Xcode 7 and above
+
+```
+/usr/bin/xcrun path/to/xcbuild-safe.sh -exportArchive \
+-exportOptionsPlist '/tmp/gym_config_1442852529.plist' \
+-archivePath '/Users/fkrause/Library/Developer/Xcode/Archives/2015-09-21/App 2015-09-21 09.21.56.xcarchive' \
+-exportPath '/tmp/1442852529'
+```
+
+`gym` makes use of the new Xcode 7 API which allows us to specify the export options using a `plist` file. You can find more information about the available options by running `xcodebuild --help`.
+
+Using this method there are no workarounds for WatchKit or Swift required, as it uses the same technique Xcode uses when exporting your binary.
+
+Note: the [xcbuild-safe.sh script](https://github.com/fastlane/gym/tree/master/lib/assets/wrap_xcodebuild/xcbuild-safe.sh) wraps around xcodebuild to workaround some incompatibilities.
+
+### Xcode 6 and below
 
 ```
 /usr/bin/xcrun /path/to/PackageApplication4Gym -v \
@@ -199,16 +255,17 @@ Afterwards the `ipa` file is moved to the output folder. The `dSYM` file is comp
 ## [`fastlane`](https://fastlane.tools) Toolchain
 
 - [`fastlane`](https://fastlane.tools): Connect all deployment tools into one streamlined workflow
-- [`deliver`](https://github.com/KrauseFx/deliver): Upload screenshots, metadata and your app to the App Store
-- [`snapshot`](https://github.com/KrauseFx/snapshot): Automate taking localized screenshots of your iOS app on every device
-- [`frameit`](https://github.com/KrauseFx/frameit): Quickly put your screenshots into the right device frames
-- [`PEM`](https://github.com/KrauseFx/pem): Automatically generate and renew your push notification profiles
-- [`produce`](https://github.com/KrauseFx/produce): Create new iOS apps on iTunes Connect and Dev Portal using the command line
-- [`cert`](https://github.com/KrauseFx/cert): Automatically create and maintain iOS code signing certificates
-- [`codes`](https://github.com/KrauseFx/codes): Create promo codes for iOS Apps using the command line
+- [`deliver`](https://github.com/fastlane/deliver): Upload screenshots, metadata and your app to the App Store
+- [`snapshot`](https://github.com/fastlane/snapshot): Automate taking localized screenshots of your iOS app on every device
+- [`frameit`](https://github.com/fastlane/frameit): Quickly put your screenshots into the right device frames
+- [`pem`](https://github.com/fastlane/pem): Automatically generate and renew your push notification profiles
+- [`produce`](https://github.com/fastlane/produce): Create new iOS apps on iTunes Connect and Dev Portal using the command line
+- [`cert`](https://github.com/fastlane/cert): Automatically create and maintain iOS code signing certificates
 - [`spaceship`](https://github.com/fastlane/spaceship): Ruby library to access the Apple Dev Center and iTunes Connect
 - [`pilot`](https://github.com/fastlane/pilot): The best way to manage your TestFlight testers and builds from your terminal
 - [`boarding`](https://github.com/fastlane/boarding): The easiest way to invite your TestFlight beta testers 
+- [`scan`](https://github.com/fastlane/scan): The easiest way to run tests of your iOS and Mac app
+- [`match`](https://github.com/fastlane/match): Easily sync your certificates and profiles across your team using git
 
 ##### [Like this tool? Be the first to know about updates and new fastlane tools](https://tinyletter.com/krausefx)
 
@@ -217,6 +274,9 @@ Download and install the [Provisioning Plugin](https://github.com/chockenberry/P
 
 # Need help?
 Please submit an issue on GitHub and provide information about your setup
+
+# Code of Conduct
+Help us keep `gym` open and inclusive. Please read and follow our [Code of Conduct](https://github.com/fastlane/code-of-conduct).
 
 # License
 This project is licensed under the terms of the MIT license. See the LICENSE file.

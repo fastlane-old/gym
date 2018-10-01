@@ -1,11 +1,14 @@
-require 'shellwords'
+# encoding: utf-8
+# from http://stackoverflow.com/a/9857493/445598
+# because of
+# `incompatible encoding regexp match (UTF-8 regexp with ASCII-8BIT string) (Encoding::CompatibilityError)`
 
 module Gym
-  # Responsible for building the fully working xcodebuild command
+  # Responsible for building the fully working xcodebuild command on Xcode < 7
   #
   # Because of a known bug in PackageApplication Perl script used by Xcode the packaging process is performed with
   # a patched version of the script.
-  class PackageCommandGenerator
+  class PackageCommandGeneratorLegacy
     class << self
       def generate
         parts = ["/usr/bin/xcrun #{XcodebuildFixes.patch_package_application} -v"]
@@ -52,6 +55,22 @@ module Gym
       # The path the the dsym file for this app. Might be nil
       def dsym_path
         Dir[BuildCommandGenerator.archive_path + "/**/*.app.dSYM"].last
+      end
+
+      def manifest_path
+        ""
+      end
+
+      def app_thinning_path
+        ""
+      end
+
+      def app_thinning_size_report_path
+        ""
+      end
+
+      def apps_path
+        ""
       end
     end
   end
